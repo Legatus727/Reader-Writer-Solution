@@ -27,6 +27,11 @@ void *writers(void *args);
 // The global area must include semaphore declarations and
 // declarations of any state variables (reader counts,
 // total number of readers and writers).
+sem_t read_mutex;
+sem_t write_mutex;
+int numReader = 0;
+int totalReads = 0;
+int totalWrites = 0;
 
 int main(int argc, char **argv) {
     
@@ -57,16 +62,33 @@ int main(int argc, char **argv) {
     
     // Add declarations for pthread arrays, one for reader threads and
     // one for writer threads.
+    pthread_t read[numRThreads], write[numWThreads];
     
     // Add declarations for arrays for reader and writer thread identities. As in the
     // dining philosopher problem, arrays of int are used.
+    int rID[numRThreads];
+    for (int i = 0; i < numRThreads; i++) {
+        rID[i] = i;
+    }
+    int wID[numWThreads];
+    for (int i = 0; i < numWThreads; i++) {
+        wID[i] = i;
+    }
     
     // Add code to initialize the binary semaphores used by the readers and writers.
-    
+    sem_init(&read_mutex, 0, 1);
+    sem_init(&write_mutex, 0, 1);
+
     // Add a for loop to create numRThread reader threads.
+    for (int i = 0; i < numRThreads; i++) {
+        pthread_create(&read[i], NULL, (void *)readers, (void *)&rID[i]);
+    }
     
     // Add a for loop to create numWThread writer threads.
-    
+    for (int i = 0; i < numWThreads; i++) {
+        pthread_create(&write[i], NULL, (void *)writers, (void *)&wID[i]);
+    }
+
     // These statements wait for the user to type a character and press
     // the Enter key. Then, keepgoing will be set to 0, which will cause
     // the reader and writer threads to quit.
@@ -76,6 +98,12 @@ int main(int argc, char **argv) {
     
     // Add two for loops using pthread_join in order to wait for the reader
     // and writer threads to quit.
+    for (int i = 0; i < numRThreads; i++) {
+        pthread_join(read[i], NULL);
+    }
+    for (int = 0; i < numWThreads; i++) {
+        pthread_join(write[i], NULL);
+    }
     
     printf("Total number of reads: %d\nTotal number of writes: %d\n",
         totalReads, totalWrites);
@@ -101,6 +129,11 @@ void *readers(void *args) {
         // reader area. However, you must use mutual exclusion
         // on the increment operation to prevent race conditions
         // for the increment.
+        sem_wait(&read_mutex);
+        numReader++;
+        if (numReader == 1) {
+            sem_wait(&write_mutex); // Block writer when first reader enters queue
+        }
         totalReads++;
 
         printf("Reader %d starting to read\n", id);
@@ -112,6 +145,11 @@ void *readers(void *args) {
         
         // Add code for each reader to leave the
         // reading area.
+        numReader--;
+        if (numReader == 0) {
+            sem_post(&write_mutex); // Last reader wakes the writer
+        }
+        sem_post(&read_mutex);
         
         threadSleep(rOOCrange, rOOCbase);
     }
@@ -126,6 +164,7 @@ void *writers(void *args) {
     while (keepgoing) {
         // Add code for each writer to enter
         // the writing area.
+        sem_wait(&write_mutex);
         totalWrites++;
 
         printf("Writer %d starting to write\n", id);
@@ -137,6 +176,7 @@ void *writers(void *args) {
         
         // Add code for each writer to leave
         // the writing area.
+        sem_post(&write_mutex);
         
         threadSleep(wOOCrange, wOOCbase);
     }
