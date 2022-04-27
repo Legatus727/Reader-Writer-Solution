@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
     for (int i = 0; i < numRThreads; i++) {
         pthread_join(read[i], NULL);
     }
-    for (int = 0; i < numWThreads; i++) {
+    for (int i = 0; i < numWThreads; i++) {
         pthread_join(write[i], NULL);
     }
     
