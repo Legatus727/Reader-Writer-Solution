@@ -27,11 +27,9 @@ void *writers(void *args);
 // The global area must include semaphore declarations and
 // declarations of any state variables (reader counts,
 // total number of readers and writers).
-sem_t read_mutex;
-sem_t write_mutex;
+pthread_mutex_t read_mutex;
+pthread_mutex_t write_mutex;
 int numReader = 0;
-int totalReads = 0;
-int totalWrites = 0;
 
 int main(int argc, char **argv) {
     
@@ -51,12 +49,12 @@ int main(int argc, char **argv) {
         numWThreads = atoi(argv[10]);
     }
     else {
-        printf("Usage: %s <reader in critical section sleep range> <reader in
-            critical section sleep base> \n\t <reader out of critical section sleep range> <reader out
-            of critical section sleep base> \n\t <writer in critical section sleep range> <writer in
-            critical section sleep base> \n\t <writer out of critical section sleep range> <writer
-            out of critical section sleep base> \n\t <number of readers> <number of writers>\n",
-            argv[0]);
+        printf("Usage: %s <reader in critical section sleep range> <reader in critical section sleep base>\n\t", argv[0]); 
+        printf(" <reader out of critical section sleep range> <reader out of critical section sleep base> \n\t"); 
+        printf(" <writer in critical section sleep range> <writer in critical section sleep base> \n\t"); 
+        printf(" <writer out of critical section sleep range> <writer out of critical section sleep base> \n\t"); 
+        printf(" <number of readers> <number of writers>\n");
+
         exit(-1);
     }
     
@@ -76,8 +74,8 @@ int main(int argc, char **argv) {
     }
     
     // Add code to initialize the binary semaphores used by the readers and writers.
-    sem_init(&read_mutex, 0, 1);
-    sem_init(&write_mutex, 0, 1);
+    pthread_mutex_init(&read_mutex, NULL);
+    pthread_mutex_init(&write_mutex, NULL);
 
     // Add a for loop to create numRThread reader threads.
     for (int i = 0; i < numRThreads; i++) {
@@ -99,11 +97,14 @@ int main(int argc, char **argv) {
     // Add two for loops using pthread_join in order to wait for the reader
     // and writer threads to quit.
     for (int i = 0; i < numRThreads; i++) {
-        pthread_join(read[i], NULL);
+        pthread_join(read[i], 1);
     }
     for (int i = 0; i < numWThreads; i++) {
-        pthread_join(write[i], NULL);
+        pthread_join(write[i], 1);
     }
+
+    pthread_mutex_destroy(&read_mutex);
+    pthread_mutex_destroy(&write_mutex);
     
     printf("Total number of reads: %d\nTotal number of writes: %d\n",
         totalReads, totalWrites);
@@ -129,13 +130,14 @@ void *readers(void *args) {
         // reader area. However, you must use mutual exclusion
         // on the increment operation to prevent race conditions
         // for the increment.
-        sem_wait(&read_mutex);
+        pthread_mutex_lock(&read_mutex);
         numReader++;
         if (numReader == 1) {
-            sem_wait(&write_mutex); // Block writer when first reader enters queue
+            pthread_mutex_lock(&write_mutex); // Block writer when first reader enters queue
         }
         totalReads++;
 
+        pthread_mutex_unlock(&read_mutex);
         printf("Reader %d starting to read\n", id);
 
         threadSleep(rICrange, rICbase);
@@ -145,11 +147,13 @@ void *readers(void *args) {
         
         // Add code for each reader to leave the
         // reading area.
+        pthread_mutex_lock(&read_mutex);
         numReader--;
         if (numReader == 0) {
-            sem_post(&write_mutex); // Last reader wakes the writer
+            pthread_mutex_unlock(&write_mutex); // Last reader wakes the writer
         }
-        sem_post(&read_mutex);
+        else
+            pthread_mutex_unlock(&read_mutex);
         
         threadSleep(rOOCrange, rOOCbase);
     }
@@ -164,7 +168,7 @@ void *writers(void *args) {
     while (keepgoing) {
         // Add code for each writer to enter
         // the writing area.
-        sem_wait(&write_mutex);
+        pthread_mutex_lock(&write_mutex);
         totalWrites++;
 
         printf("Writer %d starting to write\n", id);
@@ -176,7 +180,8 @@ void *writers(void *args) {
         
         // Add code for each writer to leave
         // the writing area.
-        sem_post(&write_mutex);
+        pthread_mutex_unlock(&read_mutex);
+        pthread_mutex_unlock(&write_mutex);
         
         threadSleep(wOOCrange, wOOCbase);
     }
